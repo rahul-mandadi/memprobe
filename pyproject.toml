@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "memprobe"
+version = "0.1.0.dev0"
+description = "A controlled ablation lab for agent-memory policy decisions (write-gating, forgetting, retrieval backend) on parameterized synthetic scenarios."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Rahul Reddy Mandadi" }]
+keywords = ["llm", "agent", "memory", "evaluation", "ablation", "langgraph"]
+
+# Core deps are intentionally light: the deterministic scenario/metric/anchor core
+# (milestone 1 — the credibility foundation) must run with NO model and NO cloud.
+dependencies = [
+    "langgraph>=0.2",            # Store API: langgraph.store.memory.InMemoryStore
+    "langgraph-checkpoint>=2.0", # BaseStore lives here
+    "pydantic>=2",              # typed scenario/config schemas
+    "numpy>=1.24",              # metric aggregation
+    "scipy>=1.10",              # confidence intervals (stats.py)
+    "pyyaml>=6",                # config matrix
+]
+
+[project.optional-dependencies]
+# Local, free, offline model path (the default for real runs).
+local = [
+    "sentence-transformers>=3",  # all-MiniLM-L6-v2 embeddings, 22MB, CPU
+    "ollama>=0.3",               # local agent + judge models
+    "faiss-cpu>=1.8",            # optional embedding index (InMemoryStore also has one)
+]
+# Opt-in cloud path for a higher-quality judge.
+api = [
+    "anthropic>=0.40",           # Haiku 4.5 judge (~$1/$5 per Mtok)
+]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+]
+
+[project.scripts]
+memprobe = "memprobe.harness.run:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# xfail_strict: a stub that suddenly passes should fail loudly so we notice it got implemented.
+xfail_strict = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
