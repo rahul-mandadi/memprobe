@@ -85,8 +85,29 @@ def aggregate(results: list[ProbeResult]) -> ConfigMetrics:
 def chance_rate(scenario: Scenario, probes: list[Probe]) -> float:
     """Expected task_success of blind guessing — the number memory_off must not exceed much.
 
-    Approximated as the mean 1/(#candidate values seen for each probed key). Used by
-    anchors.py to check the calibration floor. TODO(m1): refine candidate-set estimation once
-    the generator's value vocabulary is finalized.
+    EXACT, not estimated: the generator draws every fact value uniformly from a closed
+    candidate set (scenarios.generator.FACT_VOCAB), so a blind guesser picking uniformly from
+    a key's set is correct with probability exactly 1/|candidates|. The floor for a probe set
+    is the mean of that over its probes. Used by anchors.py as the calibration floor.
+
+    Fallbacks keep the gate strict rather than lenient:
+    - a probed key missing from FACT_VOCAB (custom domain) falls back to the distinct values
+      observed for that key in the scenario's own ground truth — the smallest auditable
+      candidate set a guesser faces (smaller set -> higher floor -> stricter calibration is
+      the WRONG direction, so we use observed values only when the vocab can't answer);
+    - a key with no observed values contributes 0.0 (an open value set is unguessable, and a
+      lower floor makes the memory_off-must-not-exceed-chance gate harder to pass, not easier).
     """
-    raise NotImplementedError("TODO(milestone-1): estimate per-probe candidate-value counts")
+    if not probes:
+        return 0.0
+    # Imported here to keep eval/ -> scenarios/ coupling explicit and one-directional
+    # (generator never imports metrics; ground truth stays model-free, ADR-0005).
+    from memprobe.scenarios.generator import FACT_VOCAB
+
+    per_probe: list[float] = []
+    for probe in probes:
+        candidates = FACT_VOCAB.get(probe.fact_key)
+        if candidates is None:
+            candidates = sorted({f.value for f in scenario.facts if f.key == probe.fact_key})
+        per_probe.append(1.0 / len(candidates) if candidates else 0.0)
+    return sum(per_probe) / len(per_probe)

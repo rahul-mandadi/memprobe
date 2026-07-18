@@ -40,13 +40,17 @@ def test_stub_recency_prefers_latest_value():
 
 # --- Implementation worklist: these xfail until their milestone is built ---
 
-@pytest.mark.xfail(reason="milestone-1: chance_rate estimation", raises=NotImplementedError, strict=True)
-def test_chance_rate_impl():
+def test_chance_rate_is_exact_vocab_floor():
+    # milestone-1 (implemented): the floor is exactly mean(1/|FACT_VOCAB[key]|) over probes.
     from memprobe.eval.metrics import chance_rate
     from memprobe.config import ScenarioParams
-    from memprobe.scenarios.generator import generate_scenario
+    from memprobe.scenarios.generator import FACT_VOCAB, generate_scenario
     s = generate_scenario("u001", 0, ScenarioParams())
-    chance_rate(s, s.sessions[-1].probes)
+    probes = s.sessions[-1].probes
+    got = chance_rate(s, probes)
+    want = sum(1.0 / len(FACT_VOCAB[p.fact_key]) for p in probes) / len(probes)
+    assert abs(got - want) < 1e-12
+    assert 0.0 < got < 1.0
 
 
 @pytest.mark.xfail(reason="milestone-2: fact extraction needs a model", raises=NotImplementedError, strict=True)
