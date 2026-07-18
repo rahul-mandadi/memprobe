@@ -29,12 +29,17 @@ def validate(
 ) -> AnchorReport:
     """Check calibration, upper bound, and placebo. Returns ok=False with reasons if any fail.
 
-    - calibration: memory_off.mean must be within `tolerance` of the chance floor (task must
-      not leak the answer without memory).
+    - calibration: memory_off.mean must not EXCEED chance + `tolerance` (task must not leak
+      the answer without memory). One-sided on purpose: an agent that refuses instead of
+      guessing sits BELOW chance, which is honest, not a failure.
     - upper_bound: oracle must be meaningfully above memory_off (else memory can't help here —
       the scenario is broken).
-    - placebo: shuffled/other-user memory must NOT be separated-above memory_off (if it beats
-      the floor, retrieval is leaking across users).
+    - placebo: shuffled/other-user memory must not clear BOTH the empirical floor
+      (CI-separated above memory_off) AND the coincidence ceiling (its whole CI above
+      max(memory_off, chance) + tolerance). ADR-0013: another user's memory matches the
+      right answer at the chance rate by value collision alone, while a refusing agent puts
+      memory_off at 0 — so "beats memory_off" is NOT leak evidence by itself; "beats chance"
+      is. Only above-coincidence placebo scores void the run.
     """
     msgs: list[str] = []
     ok = True
@@ -53,11 +58,17 @@ def validate(
             "memory cannot help on these scenarios; regenerate."
         )
 
-    if placebo.mean > memory_off.mean and separated(placebo, memory_off):
+    placebo_ceiling = max(memory_off.mean, chance_floor) + tolerance
+    if (
+        placebo.mean > placebo_ceiling
+        and placebo.lo > placebo_ceiling
+        and separated(placebo, memory_off)
+    ):
         ok = False
         msgs.append(
-            f"PLACEBO FAIL: shuffled memory {placebo} beats memory_off {memory_off} — "
-            "retrieval is leaking across users. Run is VOID."
+            f"PLACEBO FAIL: shuffled memory {placebo} beats both memory_off {memory_off} and "
+            f"the chance ceiling {placebo_ceiling:.3f} — retrieval is leaking across users. "
+            "Run is VOID."
         )
 
     if ok:

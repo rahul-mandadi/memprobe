@@ -1,12 +1,11 @@
-"""End-to-end smoke on the model-free path + xfail guards on the not-yet-built stubs.
+"""End-to-end smoke on the model-free path.
 
-The StubModel lets us prove the *shape* of the pipeline works (an oracle-style prompt yields
-correct answers; a memory-off prompt yields none) before any real model exists. The xfail
-tests below are the implementation worklist: each flips to a real test as its milestone lands
-(xfail_strict=true means an accidentally-passing stub fails the suite loudly).
+This file began as the implementation worklist: seven strict-xfail stubs, one per milestone
+(xfail_strict=true meant an accidentally-passing stub failed the suite loudly). Every stub
+has since flipped into the real test that replaced it — the flip history is the milestone
+history (git log this file). The StubModel proves the *shape* of the pipeline: an
+oracle-style prompt yields correct answers, a memory-off prompt yields none.
 """
-
-import pytest
 
 from memprobe.agent.models import StubModel, build_model
 from memprobe.eval.metrics import score_probe
@@ -130,7 +129,17 @@ def test_judge_runs_with_stub_and_audit_gate_exists():
     assert audit.n_sampled == 2 and audit.agreement == 1.0 and audit.cohen_kappa == 1.0
 
 
-@pytest.mark.xfail(reason="milestone-1..5: harness orchestration", raises=NotImplementedError, strict=True)
-def test_harness_run_impl():
+def test_harness_run_end_to_end(tmp_path):
+    # milestone-5 (implemented): the full matrix runs hermetically on a small suite, anchors
+    # validate, and a report exists. The full-size default config gets its own run in
+    # tests/test_harness.py fixtures; this is the fast smoke.
+    import json
+
     from memprobe.harness.run import run
-    run("config/default.yaml")
+    from test_harness import write_tiny_config
+
+    cfg_path = write_tiny_config(tmp_path)
+    run_dir = run(str(cfg_path), out_root=tmp_path / "runs")
+    data = json.loads((run_dir / "run.json").read_text())
+    assert data["anchors"]["ok"], data["anchors"]["messages"]
+    assert (run_dir / "results.md").exists()

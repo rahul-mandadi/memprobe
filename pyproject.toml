@@ -34,6 +34,10 @@ local = [
 api = [
     "anthropic>=0.40",           # Haiku 4.5 judge (~$1/$5 per Mtok)
 ]
+# Optional plotting for the report's pareto.png (the ASCII Pareto needs nothing).
+plot = [
+    "matplotlib>=3.8",
+]
 dev = [
     "pytest>=8",
     "ruff>=0.6",

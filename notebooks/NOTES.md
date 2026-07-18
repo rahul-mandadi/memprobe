@@ -185,6 +185,44 @@ token-overlap similarity and are labeled as such; swapping in MiniLM changes onl
 encoder. faiss stays out of v1 (numpy cosine over ≤ hundreds of records; an ANN index would
 be resume-driven complexity).
 
+## ADR-0012 — Harness semantics: hermetic default matrix, logical clock, lockstep order
+
+**Status:** accepted (2026-07-18, milestone 5).
+**Context:** three orchestration choices needed defending once the spine existed.
+**Decision:**
+- **Hermetic default:** `config/default.yaml` runs the stub agent + hashing embedder — no
+  model, no download, no network. Anchors must validate on this path before real-model
+  numbers are worth discussing; real backends (ollama / anthropic / MiniLM) are explicit
+  config swaps, never silent fallbacks (a run that quietly substitutes a backend is lying
+  about what it measured).
+- **Logical clock:** sessions are 10 days apart (`SESSION_SPACING_DAYS`, harness-owned —
+  time is scenario semantics, not agent policy). With the 30-day half-life and 0.2 floor,
+  memories fade after ~7 sessions, so forgetting has measurable bite inside an 8-session
+  scenario instead of being a configured no-op.
+- **Session-lockstep order:** all users run session s before any runs s+1, because the
+  placebo's probe-time read of a neighbor's namespace must find that neighbor's
+  prior-session writes. Scramble mapping is i -> (i+1) mod n: fixed-point-free, so no user
+  is ever served their own memory.
+**Consequence:** `memprobe --config config/default.yaml` is reproducible end-to-end on a
+laptop with zero credentials, and every real-model run shares the same clock and ordering.
+
+## ADR-0013 — Placebo compares against coincidence, not against a refusing floor
+
+**Status:** accepted (2026-07-18, milestone 5). Amends ADR-0006's placebo clause.
+**Context:** integration surfaced a false-VOID: the stub agent REFUSES when memory is empty,
+so memory_off = 0 exactly — below chance. Another user's memory matches the right answer at
+roughly the chance rate by pure value collision (closed vocabularies), so an honest,
+leak-free placebo lands near chance, which is "above memory_off, CI-separated" — the old
+check voided every honest run.
+**Decision:** the placebo fails only when it clears BOTH gates: CI-separated above
+memory_off (the empirical floor) AND its whole interval above max(memory_off, chance) +
+tolerance (the coincidence ceiling). Calibration stays one-sided for the same reason:
+refusing below chance is honest behavior, not leakage.
+**Consequence:** all four pre-existing anchor tests pass unchanged; two new tests pin the
+refusing-floor cases. Interview version: "my placebo anchor originally compared against the
+empirical floor; a refusing agent drove that floor to zero and made coincidence look like
+leakage — the fix is that leakage means beating *chance*, not beating *refusal*."
+
 ## Open questions (resolve during build)
 - Does the direct-vs-embedding crossover even appear at n_users=20 scale, or must scenarios
   grow to make retrieval matter? (PKB's finding suggests direct wins while small — that would

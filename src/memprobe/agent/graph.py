@@ -94,13 +94,19 @@ def _render_records(records: list[MemoryRecord]) -> list[str]:
 
 
 class Agent:
-    """A compiled policy cell: one LangGraph graph + its knobs, store, and model."""
+    """A compiled policy cell: one LangGraph graph + its knobs, store, model, retriever.
 
-    def __init__(self, graph, policy: PolicyConfig, store: MemoryStore | None, agent_model) -> None:
+    The retriever is exposed because it carries the embedding cost meter (`embed_tokens`) —
+    the harness reads it for the accuracy-vs-cost accounting (ADR-0011)."""
+
+    def __init__(
+        self, graph, policy: PolicyConfig, store: MemoryStore | None, agent_model, retriever=None
+    ) -> None:
         self._graph = graph
         self.policy = policy
         self.store = store
         self.model = agent_model
+        self.retriever = retriever
 
     def run_session(
         self,
@@ -238,4 +244,4 @@ def build_agent(policy: PolicyConfig, store: MemoryStore | None, agent_model, em
     g.add_edge("extract", "gated_write")
     g.add_edge("gated_write", END)
 
-    return Agent(g.compile(), policy, store, agent_model)
+    return Agent(g.compile(), policy, store, agent_model, retriever)
