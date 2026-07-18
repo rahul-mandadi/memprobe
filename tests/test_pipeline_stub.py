@@ -104,10 +104,19 @@ def test_langgraph_store_adapter():
     assert [r.value for r in s.all("b")] == ["team"]
 
 
-@pytest.mark.xfail(reason="milestone-3: embedding retrieval", raises=NotImplementedError, strict=True)
-def test_embedding_retriever_impl():
-    from memprobe.memory.retrieval import EmbeddingRetriever
-    EmbeddingRetriever(store=None)
+def test_embedding_retriever_cosine_topk():
+    # milestone-3 (implemented): similarity search finds the right fact record for a
+    # natural-language query, hermetically (deterministic hashing embedder).
+    from memprobe.memory.retrieval import EmbeddingRetriever, HashingEmbedder
+    from memprobe.memory.store import DictStore, MemoryRecord
+
+    store = DictStore()
+    store.put(MemoryRecord(key="plan_tier", value="pro", user_id="a", source_session=0, written_at=0.0))
+    store.put(MemoryRecord(key="timezone", value="eastern", user_id="a", source_session=1, written_at=1.0))
+    ret = EmbeddingRetriever(store, embedder=HashingEmbedder())
+    top = ret.retrieve("a", "what's my plan tier on file?", k=1)
+    assert [r.key for r in top] == ["plan_tier"]
+    assert ret.embed_tokens > 0  # the cost meter runs
 
 
 @pytest.mark.xfail(reason="milestone-4: judge + agreement audit", raises=NotImplementedError, strict=True)

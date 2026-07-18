@@ -164,6 +164,27 @@ key match, most-recent first) instead of delegating to substrate text search, so
 backends rank identically and the direct-vs-embedding ablation measures the retrieval
 policy, not two vendors' rankers. Parity is test-enforced (`test_langgraph_store.py`).
 
+## ADR-0011 — Hermetic embedding backend: deterministic feature hashing; MiniLM is opt-in
+
+**Status:** accepted (2026-07-18, milestone 3).
+**Context:** the direct-vs-embedding column must run in the hermetic default matrix and in
+CI (ADR-0005 spirit: the lab is exercisable with no model, no download, no network). MiniLM
+needs a 22MB download and torch — fine for opt-in runs, wrong as a test/default dependency.
+**Decision:** the embedding backend takes an injected encoder. The hermetic default is
+classic feature hashing (md5-bucketed token counts, l2-normalized — md5, not Python's
+seeded hash(), so vectors are reproducible across processes). `local:all-MiniLM-L6-v2`
+(sentence-transformers) is the drop-in real encoder selected by config for opt-in runs.
+Three fairness rules, enforced in code: the embedding query is the natural probe question
+while the direct read gets the structured key (that asymmetry IS the two policies being
+compared); episode records stay on their recency channel under both backends (one variable
+per ablation); and every real encode is metered in `embed_tokens` (records and queries
+cache by exact text) so the cost column reflects actual encoder work vs the direct read's
+structural zero.
+**Consequence:** stub-path embedding results measure the retrieval *policy* mechanics on
+token-overlap similarity and are labeled as such; swapping in MiniLM changes only the
+encoder. faiss stays out of v1 (numpy cosine over ≤ hundreds of records; an ANN index would
+be resume-driven complexity).
+
 ## Open questions (resolve during build)
 - Does the direct-vs-embedding crossover even appear at n_users=20 scale, or must scenarios
   grow to make retrieval matter? (PKB's finding suggests direct wins while small — that would
