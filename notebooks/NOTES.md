@@ -97,6 +97,11 @@ know which facts/constraints lived in discarded turns, so "compaction erased som
 agent later needed" is deterministically checkable.
 **Consequence:** no new repo; v2 milestones get specced only after the v1 results table
 exists.
+**Addendum (context-layer talk, Jul 2026):** a further v2 axis — shared vs. siloed stores
+across N agents, scored on cross-agent answer consistency (the "sales and finance report two
+different revenue numbers" failure, made measurable). Namespace config decides shared vs.
+per-agent; the generator knows the true answer; metric = agreement AND correctness across
+agents. Nearly free given the existing machinery.
 
 ## Open questions (resolve during build)
 - Does the direct-vs-embedding crossover even appear at n_users=20 scale, or must scenarios
