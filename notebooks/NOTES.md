@@ -80,6 +80,24 @@ circular and a reviewer will say so in the first five minutes.
 Report mean ± 95% CI across seeds and users; single-run point numbers are not a result.
 **Consequence:** `eval/anchors.py` is not optional; the harness aborts a run whose anchors fail.
 
+## ADR-0007 — Context-policy ablation is the v2 family (not a separate harness project)
+
+**Status:** accepted (2026-07-17); **do not start before v1 ships.**
+**Context:** the idea of a standalone "dynamic agentic harness with context layering" was
+evaluated. The agent-framework space is saturated (LangGraph/CrewAI/AutoGen/OpenAI Agents
+SDK/smolagents/Claude Agent SDK/...), and frameworks are judged by adoption, not existence.
+Meanwhile the 2026 context-engineering literature (compaction validation, "governance decay":
+compaction silently erasing constraints) is naming a measurement gap with exactly this lab's
+shape.
+**Decision:** context policies become memprobe's second ablation family, reusing the whole
+apparatus: compaction strategy (none/truncate/summarize), context budget, and tool-result
+clearing as axes; full-context as the oracle anchor and no-history as the floor; and — the
+differentiated metric — *compaction survival*: because ground truth is program-generated, we
+know which facts/constraints lived in discarded turns, so "compaction erased something the
+agent later needed" is deterministically checkable.
+**Consequence:** no new repo; v2 milestones get specced only after the v1 results table
+exists.
+
 ## Open questions (resolve during build)
 - Does the direct-vs-embedding crossover even appear at n_users=20 scale, or must scenarios
   grow to make retrieval matter? (PKB's finding suggests direct wins while small — that would
