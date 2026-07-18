@@ -53,22 +53,55 @@ def test_chance_rate_is_exact_vocab_floor():
     assert 0.0 < got < 1.0
 
 
-@pytest.mark.xfail(reason="milestone-2: fact extraction needs a model", raises=NotImplementedError, strict=True)
-def test_extract_facts_impl():
-    from memprobe.memory.semantic import extract_facts
-    extract_facts([], build_model("stub"))
+def test_extract_facts_confidence_is_a_real_signal():
+    # milestone-2 (implemented): three evidence tiers -> tau has something to separate.
+    from memprobe.memory.semantic import (
+        CONF_OFF_VOCAB, CONF_UPDATE, CONF_VOCAB_ASSERT, extract_facts,
+    )
+    from memprobe.scenarios.schema import Turn
+
+    m = build_model("stub")
+    assert extract_facts([], m) == []
+    turns = [
+        Turn(speaker="user", text="my plan_tier is pro"),
+        Turn(speaker="user", text="my noise_billing_cycle is annual"),
+        Turn(speaker="user", text="actually my timezone is now pacific"),
+    ]
+    cands = {c.key: c for c in extract_facts(turns, m)}
+    assert cands["plan_tier"].confidence == CONF_VOCAB_ASSERT
+    assert cands["noise_billing_cycle"].confidence == CONF_OFF_VOCAB
+    assert cands["timezone"].confidence == CONF_UPDATE
+    assert len({c.confidence for c in cands.values()}) == 3
 
 
-@pytest.mark.xfail(reason="milestone-2: LangGraph agent assembly", raises=NotImplementedError, strict=True)
-def test_build_agent_impl():
+def test_build_agent_runs_the_full_graph():
+    # milestone-2 (implemented): a fact written in session 0 answers a probe in session 1.
     from memprobe.agent.graph import PolicyConfig, build_agent
-    build_agent(PolicyConfig(), store=None, agent_model=build_model("stub"))
+    from memprobe.memory.store import DictStore
+    from memprobe.scenarios.schema import Session, Turn
+
+    agent = build_agent(PolicyConfig(use_semantic=True), DictStore(), build_model("stub"))
+    s0 = Session(user_id="a", index=0,
+                 turns=[Turn(speaker="user", text="my plan_tier is pro")], probes=[])
+    assert agent.run_session("a", s0) == []
+    probe = Probe(probe_id="p", session_index=1, fact_key="plan_tier", expected_value="pro")
+    s1 = Session(user_id="a", index=1, turns=[], probes=[probe])
+    (resp,) = agent.run_session("a", s1)
+    assert score_probe(resp["response"], probe).correct
 
 
-@pytest.mark.xfail(reason="milestone-2: LangGraph Store adapter", raises=NotImplementedError, strict=True)
-def test_langgraph_store_impl():
-    from memprobe.memory.store import LangGraphStore
-    LangGraphStore()
+def test_langgraph_store_adapter():
+    # milestone-2 (implemented): append semantics, insertion order, recency search, isolation.
+    from memprobe.memory.store import LangGraphStore, MemoryRecord
+
+    s = LangGraphStore()
+    s.put(MemoryRecord(key="plan_tier", value="free", user_id="a", source_session=0, written_at=0.0))
+    s.put(MemoryRecord(key="plan_tier", value="pro", user_id="a", source_session=2, written_at=2.0))
+    s.put(MemoryRecord(key="plan_tier", value="team", user_id="b", source_session=0, written_at=0.0))
+    assert [r.value for r in s.all("a")] == ["free", "pro"]
+    assert [r.value for r in s.get("a", "plan_tier")] == ["free", "pro"]
+    assert [r.value for r in s.search("a", "plan_tier", k=1)] == ["pro"]
+    assert [r.value for r in s.all("b")] == ["team"]
 
 
 @pytest.mark.xfail(reason="milestone-3: embedding retrieval", raises=NotImplementedError, strict=True)

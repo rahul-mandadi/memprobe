@@ -58,15 +58,41 @@ class StubModel:
         return self._usage
 
 
+def _resp_field(resp, name: str):
+    """Read a field off an ollama response, which is a dict in older clients and a
+    pydantic ChatResponse in newer ones — support both without pinning."""
+    if isinstance(resp, dict):
+        return resp.get(name)
+    return getattr(resp, name, None)
+
+
 @dataclass
 class OllamaModel:
-    """Local Ollama backend (default for real runs). TODO(milestone-2)."""
+    """Local Ollama backend (default for real runs; $0, offline).
+
+    The client library is imported lazily so the hermetic core never needs the [local]
+    extra installed; a real call without it fails with an actionable message. Token usage
+    prefers the server's real counts (prompt_eval_count/eval_count) and falls back to
+    word-count approximations so cost plumbing never silently reads zero.
+    """
 
     name: str
     _usage: Usage = field(default_factory=Usage)
 
     def complete(self, prompt: str) -> str:
-        raise NotImplementedError("TODO(milestone-2): call ollama.chat; accumulate token usage")
+        try:
+            import ollama
+        except ImportError as e:  # pragma: no cover - exercised only without the extra
+            raise RuntimeError(
+                "OllamaModel needs the [local] extra and a running Ollama daemon: "
+                "pip install -e '.[local]' && ollama serve"
+            ) from e
+        resp = ollama.chat(model=self.name, messages=[{"role": "user", "content": prompt}])
+        message = _resp_field(resp, "message")
+        text = message["content"] if isinstance(message, dict) else message.content
+        self._usage.input_tokens += int(_resp_field(resp, "prompt_eval_count") or len(prompt.split()))
+        self._usage.output_tokens += int(_resp_field(resp, "eval_count") or len(text.split()))
+        return text
 
     @property
     def usage(self) -> Usage:

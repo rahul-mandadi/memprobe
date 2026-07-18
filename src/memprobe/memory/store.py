@@ -70,14 +70,51 @@ class DictStore:
 
 
 class LangGraphStore:
-    """Adapter over langgraph.store.memory.InMemoryStore (the production substrate).
+    """Adapter over langgraph.store.memory.InMemoryStore (the production substrate, ADR-0003).
 
-    Namespaces map to LangGraph's namespace tuples: ("memprobe", user_id). Stubbed so the core
-    stays install-light; real runs use this. TODO(milestone-2)."""
+    LangGraph's Store owns storage and namespacing — namespaces map to its namespace tuples:
+    ("memprobe", user_id). Two adapter decisions worth defending:
+
+    - Item keys are "{record.key}@{seq}" because LangGraph's put() REPLACES by key, while the
+      lab needs APPEND semantics: a superseded value must stay observable or staleness and
+      forgetting have nothing to measure. The monotone seq also preserves insertion order.
+    - `search` re-implements the SAME transparent direct-read ranking as DictStore (substring
+      key match, most-recent first) rather than delegating to the substrate's text search.
+      Both backends must rank identically so the direct-vs-embedding ablation measures the
+      retrieval *policy*, not two vendors' ranking implementations. Parity is test-enforced
+      (test_langgraph_store.py).
+    """
+
+    NAMESPACE_ROOT = "memprobe"
 
     def __init__(self, index: dict | None = None) -> None:
-        # `index` configures LangGraph semantic search (embeddings) when retrieval=embedding.
-        raise NotImplementedError(
-            "TODO(milestone-2): wrap InMemoryStore; namespace ('memprobe', user_id); "
-            "map put/search to store.put/store.search"
-        )
+        # `index` configures LangGraph semantic search (embeddings). memprobe's own
+        # EmbeddingRetriever (retrieval.py) is the measured embedding path; the index
+        # passthrough exists so the substrate's native indexing stays reachable.
+        from langgraph.store.memory import InMemoryStore
+
+        self._store = InMemoryStore(index=index) if index is not None else InMemoryStore()
+        self._seq = 0
+
+    def _ns(self, user_id: str) -> tuple[str, str]:
+        return (self.NAMESPACE_ROOT, user_id)
+
+    def put(self, record: MemoryRecord) -> None:
+        from dataclasses import asdict
+
+        self._seq += 1
+        self._store.put(self._ns(record.user_id), f"{record.key}@{self._seq:08d}", asdict(record))
+
+    def get(self, user_id: str, key: str) -> list[MemoryRecord]:
+        return [r for r in self.all(user_id) if r.key == key]
+
+    def all(self, user_id: str) -> list[MemoryRecord]:
+        items = self._store.search(self._ns(user_id), limit=100_000)
+        # Insertion order via the seq suffix — the substrate does not guarantee order.
+        items.sort(key=lambda it: int(it.key.rsplit("@", 1)[1]))
+        return [MemoryRecord(**it.value) for it in items]
+
+    def search(self, user_id: str, query: str, k: int = 5) -> list[MemoryRecord]:
+        # Direct baseline: identical semantics to DictStore.search (parity is the contract).
+        hits = [r for r in self.all(user_id) if r.key in query or query in r.key]
+        return sorted(hits, key=lambda r: r.written_at, reverse=True)[:k]

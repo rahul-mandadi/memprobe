@@ -103,6 +103,67 @@ different revenue numbers" failure, made measurable). Namespace config decides s
 per-agent; the generator knows the true answer; metric = agreement AND correctness across
 agents. Nearly free given the existing machinery.
 
+## ADR-0008 — Extraction confidence is evidence-grounded, never model-self-reported
+
+**Status:** accepted (2026-07-18, milestone 2).
+**Context:** the write gate (ADR-0004) needs a confidence signal. The obvious source — asking
+the extraction model "how confident are you?" — has three problems: it is a constant-ish vibe
+on small models, it changes meaning across model backends (so a tau sweep would ablate model
+calibration, not the gate), and it can't run on the deterministic stub path at all.
+**Decision:** the MODEL proposes candidate (key, value) pairs; the EXTRACTOR assigns
+confidence from source-text evidence via a fixed, documented tier table
+(`memory/semantic.py`): clean in-vocabulary assertion 0.95 > update/correction assertion 0.85
+> off-vocabulary key 0.75 > hedged/out-of-set 0.55 > no supporting assertion 0.30, plus a
+small corroboration bonus. Updates are discounted because revisions of a stored belief are
+empirically likelier to flip again; off-vocab keys are exactly the "plausible junk" a strict
+gate should refuse (the generator's distractors land there by construction).
+**Consequence:** the tiers make tau=0.7 vs tau=0.9 a REAL behavioral fork on the stub path
+(0.7 tracks revisions but admits junk; 0.9 refuses junk but goes stale on revisions — that
+curve is the headline of the tau ablation). A hallucinated extraction has no evidence and
+dies at every gate. The definition is constant across model backends, so the sweep measures
+the gate.
+
+## ADR-0009 — One canonical context surface for every memory type
+
+**Status:** accepted (2026-07-18, milestone 2).
+**Context:** episodic recaps and semantic facts naturally serialize differently; a responder
+(especially the deterministic stub) could succeed or fail on FORMAT, confounding the
+episodic-vs-semantic comparison.
+**Decision:** the respond-time context builder renders every retrieved memory — semantic
+record or episodic recap pair — as the same assertion line `my <key> is <value>`, ordered
+oldest -> newest (so "later = more current" is encoded honestly; the stub literally keeps the
+last value per key). Episode summaries are a CONTRACT ('key: value' pairs) that the builder
+unpacks into that surface.
+**Consequence:** memory types differ only in WHAT was stored/retrieved (gating, granularity,
+recency windows), never in how it was punctuated. The ablation measures policy, not parsing.
+
+## ADR-0010 — Respond context is memory-only (no live-session turns) in v1
+
+**Status:** accepted (2026-07-18, milestone 2).
+**Context:** a real deployed agent sees the live conversation plus memory. But if probes can
+be answered from the live session, memory_off scores above zero on exactly the probes whose
+facts changed in the probe session, the calibration floor drifts above chance, and the
+placebo anchor inherits the same lift — all three anchors get muddier for a marginal gain in
+realism.
+**Decision:** the respond node sees retrieved memory and the probe question only. The
+graph's per-session order (retrieve -> respond -> extract -> gated_write) means a fact
+updated in the probe session is not yet written when the probe is answered — every memory
+policy misses it, only oracle gets it right.
+**Consequence:** anchors stay clean (memory_off = pure refusal floor). The oracle-vs-best-
+config gap includes same-session updates and the report says so. Live-context interplay is
+not lost — it is the v2 context-policy family's opening axis (ADR-0007), where it can be
+measured instead of assumed.
+
+## ADR-0003 addendum (milestone 2) — how the LangGraph adapter preserves lab semantics
+
+Two adapter choices in `memory/store.py::LangGraphStore`: (1) item keys carry a monotone
+sequence suffix because LangGraph's `put()` replaces by key while the lab requires APPEND
+history (a superseded value must stay observable or staleness/forgetting have nothing to
+measure); (2) `search` re-implements DictStore's transparent direct-read ranking (substring
+key match, most-recent first) instead of delegating to substrate text search, so both
+backends rank identically and the direct-vs-embedding ablation measures the retrieval
+policy, not two vendors' rankers. Parity is test-enforced (`test_langgraph_store.py`).
+
 ## Open questions (resolve during build)
 - Does the direct-vs-embedding crossover even appear at n_users=20 scale, or must scenarios
   grow to make retrieval matter? (PKB's finding suggests direct wins while small — that would
