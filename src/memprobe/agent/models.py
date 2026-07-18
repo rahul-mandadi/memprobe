@@ -101,13 +101,32 @@ class OllamaModel:
 
 @dataclass
 class AnthropicModel:
-    """Opt-in cloud backend for a stronger judge (Haiku 4.5, ~$1/$5 per Mtok). TODO(milestone-4)."""
+    """Opt-in cloud backend for a stronger judge (Haiku 4.5, ~$1/$5 per Mtok).
+
+    Lazy import + real token usage from the API response. Requires the [api] extra and
+    ANTHROPIC_API_KEY; the hermetic core never touches this path.
+    """
 
     name: str = "claude-haiku-4-5"
     _usage: Usage = field(default_factory=Usage)
+    _client: object = field(default=None, repr=False)
 
     def complete(self, prompt: str) -> str:
-        raise NotImplementedError("TODO(milestone-4): anthropic messages API; real token usage")
+        if self._client is None:
+            try:
+                import anthropic
+            except ImportError as e:  # pragma: no cover - exercised only without the extra
+                raise RuntimeError(
+                    "AnthropicModel needs the [api] extra: pip install -e '.[api]'"
+                ) from e
+            self._client = anthropic.Anthropic()
+        resp = self._client.messages.create(
+            model=self.name, max_tokens=512,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        self._usage.input_tokens += resp.usage.input_tokens
+        self._usage.output_tokens += resp.usage.output_tokens
+        return "".join(block.text for block in resp.content if getattr(block, "text", None))
 
     @property
     def usage(self) -> Usage:

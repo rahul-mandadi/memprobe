@@ -119,10 +119,15 @@ def test_embedding_retriever_cosine_topk():
     assert ret.embed_tokens > 0  # the cost meter runs
 
 
-@pytest.mark.xfail(reason="milestone-4: judge + agreement audit", raises=NotImplementedError, strict=True)
-def test_judge_impl():
-    from memprobe.eval.judge import judge_quality
-    judge_quality("resp", "expected", build_model("stub"))
+def test_judge_runs_with_stub_and_audit_gate_exists():
+    # milestone-4 (implemented): the judge runs deterministically with the stub (flagged as
+    # a fallback, never a model judgment) and the audit machinery computes kappa.
+    from memprobe.eval.judge import audit_agreement, judge_quality
+
+    score = judge_quality("plan_tier: pro", "pro", build_model("stub"))
+    assert score.quality == 1.0 and score.rationale.startswith("[fallback slot-check]")
+    audit = audit_agreement({"a": 1.0, "b": 0.0}, {"a": 1.0, "b": 0.0})
+    assert audit.n_sampled == 2 and audit.agreement == 1.0 and audit.cohen_kappa == 1.0
 
 
 @pytest.mark.xfail(reason="milestone-1..5: harness orchestration", raises=NotImplementedError, strict=True)
