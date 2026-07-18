@@ -215,6 +215,11 @@ def render(run_dir: str | Path) -> Path:
             "- Contamination counts responses asserting a value with no support in the "
             "user's own history (other users' current values); the statistical cross-user "
             "leak gate is the placebo anchor (ADR-0013).",
+            "- Stale answers are the flagged-AND-wrong subset of the same must_not_contain "
+            "channel (superseded own values and other-user values share it in v1 — "
+            "metrics.py says so out loud; a per-user unique-token tracer is the sharper v2 "
+            "instrument). For the placebo column that makes 'stale' read as 'served a "
+            "neighbor's value and missed'.",
             "- The oracle-vs-best-config gap includes same-session updates, which no memory "
             "policy can answer under the memory-only respond context (ADR-0010).",
         ]

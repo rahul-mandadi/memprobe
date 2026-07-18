@@ -156,31 +156,47 @@ def build_agent(policy: PolicyConfig, store: MemoryStore | None, agent_model, em
         retriever = DirectRetriever(store) if store is not None else None
 
     def _candidate_records(state: AgentState, probe: Probe) -> list[MemoryRecord]:
-        """Fetch, apply the forgetting policy, and cap at top-k for one probe."""
+        """Select the context window for one probe.
+
+        SELECTION BY BACKEND RANKING, PRESENTATION BY TIME (ADR-0011 addendum): each enabled
+        memory channel fills its own top-k budget in ITS OWN ranking order — episodes by
+        recency, semantic facts by the retrieval backend's ranking (recency for direct,
+        cosine for embedding). Re-sorting the merged pool by recency before capping — the
+        obvious 'uniform' alternative — silently discards the embedding backend's ranking
+        and turns the retrieval ablation into a recency-window comparison (caught on the
+        first full run). _render_records then orders the SELECTED window oldest-first for
+        the prompt, which is presentation, not selection.
+        """
         mem_uid = state["memory_user_id"]
-        records: list[MemoryRecord] = []
+        selected: list[MemoryRecord] = []
         if policy.use_episodic and store is not None:
             episodes = [
                 r for r in store.all(mem_uid)
                 if r.key.startswith(_episodic.EPISODE_KEY_PREFIX + ":")
             ]
-            records.extend(episodes)
+            episodes.sort(key=lambda r: r.written_at, reverse=True)  # episodic policy: recency
+            if policy.forgetting:
+                episodes = apply_forgetting(
+                    episodes, now=state["now"], policy=policy.forgetting,
+                    half_life=policy.half_life_days,
+                )
+            selected.extend(episodes[: policy.retrieve_k])
         if policy.use_semantic and retriever is not None:
             if policy.retrieval == "embedding":
                 query = probe_question(probe)  # similarity search sees the natural question
             else:
                 query = probe.fact_key         # direct read is a structured key lookup
             # over-fetch so the forgetting policy filters BEFORE the top-k cap
-            records.extend(retriever.retrieve(mem_uid, query, k=policy.retrieve_k * 4))
-        if policy.forgetting:
-            records = apply_forgetting(
-                records, now=state["now"], policy=policy.forgetting,
-                half_life=policy.half_life_days,
-            )
-        # Final cap: most-recent k (uniform across backends so k is not a confound), but
-        # _render_records re-orders oldest-first for the prompt.
-        records = sorted(records, key=lambda r: r.written_at, reverse=True)[: policy.retrieve_k]
-        return records
+            fetched = retriever.retrieve(mem_uid, query, k=policy.retrieve_k * 4)
+            if policy.forgetting:
+                # v1 composes decay with the direct backend (the matrix pairs them);
+                # similarity-times-decay hybrid scoring is a v2 axis.
+                fetched = apply_forgetting(
+                    fetched, now=state["now"], policy=policy.forgetting,
+                    half_life=policy.half_life_days,
+                )
+            selected.extend(fetched[: policy.retrieve_k])
+        return selected
 
     def retrieve(state: AgentState) -> dict:
         if policy.memory_off or not state["probes"]:

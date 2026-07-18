@@ -10,7 +10,7 @@ test:  ## Run the deterministic suite (stub model — no API key, no Ollama need
 lint:  ## Ruff lint
 	ruff check src tests
 
-bench:  ## Run the config matrix -> results (needs a model backend: [local] or [api])
+bench:  ## Run the config matrix -> results (hermetic by default: stub agent, no keys)
 	python -m memprobe.harness.run --config config/default.yaml
 
 report:  ## Render the results-first markdown + Pareto plot from the latest run

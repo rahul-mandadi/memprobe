@@ -1,0 +1,274 @@
+{
+  "run_id": "20260718-010457",
+  "config_path": "config/default.yaml",
+  "models": {
+    "agent": "stub",
+    "judge": "stub",
+    "embeddings": "hash"
+  },
+  "scenarios": {
+    "n_users": 20,
+    "n_sessions": 8,
+    "turns_per_session": 6,
+    "contradiction_rate": 0.25,
+    "distractor_density": 0.3,
+    "seeds": [
+      0,
+      1,
+      2
+    ]
+  },
+  "report": {
+    "confidence": 0.95,
+    "out_dir": "report/out"
+  },
+  "chance_floor": 0.3,
+  "anchors": {
+    "ok": true,
+    "messages": [
+      "anchors OK: calibration, upper bound, and placebo all hold."
+    ]
+  },
+  "configs": [
+    {
+      "name": "memory_off",
+      "anchor": "calibration",
+      "task_success": {
+        "mean": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 60
+      },
+      "contamination": {
+        "mean": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 60
+      },
+      "staleness": {
+        "mean": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 60
+      },
+      "tokens": {
+        "input": 5282,
+        "output": 720,
+        "embed": 0,
+        "per_session": 12.5
+      },
+      "cost_usd": 0.0,
+      "n_probes": 120
+    },
+    {
+      "name": "oracle",
+      "anchor": "upper_bound",
+      "task_success": {
+        "mean": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "n": 60
+      },
+      "contamination": {
+        "mean": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 60
+      },
+      "staleness": {
+        "mean": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 60
+      },
+      "tokens": {
+        "input": 6962,
+        "output": 480,
+        "embed": 0,
+        "per_session": 15.5
+      },
+      "cost_usd": 0.0,
+      "n_probes": 120
+    },
+    {
+      "name": "shuffled_placebo",
+      "anchor": "placebo",
+      "task_success": {
+        "mean": 0.275,
+        "lo": 0.19117420993934225,
+        "hi": 0.3588257900606578,
+        "n": 60
+      },
+      "contamination": {
+        "mean": 0.39166666666666666,
+        "lo": 0.30562141163268347,
+        "hi": 0.47771192170064986,
+        "n": 60
+      },
+      "staleness": {
+        "mean": 0.3333333333333333,
+        "lo": 0.24225917475619238,
+        "hi": 0.4244074919104742,
+        "n": 60
+      },
+      "tokens": {
+        "input": 34020,
+        "output": 2514,
+        "embed": 0,
+        "per_session": 76.11
+      },
+      "cost_usd": 0.0,
+      "n_probes": 120
+    },
+    {
+      "name": "episodic_only",
+      "anchor": null,
+      "task_success": {
+        "mean": 0.6583333333333333,
+        "lo": 0.5678041454077827,
+        "hi": 0.748862521258884,
+        "n": 60
+      },
+      "contamination": {
+        "mean": 0.24166666666666667,
+        "lo": 0.1610507184250449,
+        "hi": 0.32228261490828847,
+        "n": 60
+      },
+      "staleness": {
+        "mean": 0.15,
+        "lo": 0.07747780655380156,
+        "hi": 0.22252219344619845,
+        "n": 60
+      },
+      "tokens": {
+        "input": 31860,
+        "output": 2678,
+        "embed": 0,
+        "per_session": 71.95
+      },
+      "cost_usd": 0.0,
+      "n_probes": 120
+    },
+    {
+      "name": "semantic_gate_07",
+      "anchor": null,
+      "task_success": {
+        "mean": 0.8666666666666667,
+        "lo": 0.7958542122551897,
+        "hi": 0.9374791210781437,
+        "n": 60
+      },
+      "contamination": {
+        "mean": 0.3333333333333333,
+        "lo": 0.24225917475619238,
+        "hi": 0.4244074919104742,
+        "n": 60
+      },
+      "staleness": {
+        "mean": 0.13333333333333333,
+        "lo": 0.06252087892185638,
+        "hi": 0.2041457877448103,
+        "n": 60
+      },
+      "tokens": {
+        "input": 60478,
+        "output": 4820,
+        "embed": 0,
+        "per_session": 136.04
+      },
+      "cost_usd": 0.0,
+      "n_probes": 120
+    },
+    {
+      "name": "semantic_gate_09",
+      "anchor": null,
+      "task_success": {
+        "mean": 0.8583333333333333,
+        "lo": 0.786628041294009,
+        "hi": 0.9300386253726576,
+        "n": 60
+      },
+      "contamination": {
+        "mean": 0.26666666666666666,
+        "lo": 0.18270044127541735,
+        "hi": 0.350632892057916,
+        "n": 60
+      },
+      "staleness": {
+        "mean": 0.14166666666666666,
+        "lo": 0.06996137462734235,
+        "hi": 0.21337195870599096,
+        "n": 60
+      },
+      "tokens": {
+        "input": 60262,
+        "output": 4794,
+        "embed": 0,
+        "per_session": 135.53
+      },
+      "cost_usd": 0.0,
+      "n_probes": 120
+    },
+    {
+      "name": "semantic_embedding",
+      "anchor": null,
+      "task_success": {
+        "mean": 0.8666666666666667,
+        "lo": 0.7958542122551897,
+        "hi": 0.9374791210781437,
+        "n": 60
+      },
+      "contamination": {
+        "mean": 0.3333333333333333,
+        "lo": 0.24225917475619238,
+        "hi": 0.4244074919104742,
+        "n": 60
+      },
+      "staleness": {
+        "mean": 0.13333333333333333,
+        "lo": 0.06252087892185638,
+        "hi": 0.2041457877448103,
+        "n": 60
+      },
+      "tokens": {
+        "input": 61678,
+        "output": 4994,
+        "embed": 686,
+        "per_session": 138.9
+      },
+      "cost_usd": 0.0,
+      "n_probes": 120
+    },
+    {
+      "name": "semantic_forget_decay",
+      "anchor": null,
+      "task_success": {
+        "mean": 0.7833333333333333,
+        "lo": 0.7031570317884628,
+        "hi": 0.8635096348782039,
+        "n": 60
+      },
+      "contamination": {
+        "mean": 0.2916666666666667,
+        "lo": 0.19867225141530148,
+        "hi": 0.3846610819180319,
+        "n": 60
+      },
+      "staleness": {
+        "mean": 0.14166666666666666,
+        "lo": 0.06996137462734235,
+        "hi": 0.21337195870599096,
+        "n": 60
+      },
+      "tokens": {
+        "input": 60384,
+        "output": 4792,
+        "embed": 0,
+        "per_session": 135.78
+      },
+      "cost_usd": 0.0,
+      "n_probes": 120
+    }
+  ]
+}

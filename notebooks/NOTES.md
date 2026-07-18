@@ -223,10 +223,17 @@ refusing-floor cases. Interview version: "my placebo anchor originally compared 
 empirical floor; a refusing agent drove that floor to zero and made coincidence look like
 leakage — the fix is that leakage means beating *chance*, not beating *refusal*."
 
-## Open questions (resolve during build)
-- Does the direct-vs-embedding crossover even appear at n_users=20 scale, or must scenarios
-  grow to make retrieval matter? (PKB's finding suggests direct wins while small — that would
-  itself be the honest result to report.)
-- Minimum seeds for the CIs to separate configs? Start at 3, widen if intervals overlap.
+## Open questions (updated after the v1 run, 2026-07-18)
+- ~~Does the direct-vs-embedding crossover even appear at n_users=20 scale?~~ **Answered for
+  the hermetic path: no crossover.** Embedding retrieval tied direct exactly (0.867) while
+  paying 686 embedding tokens — direct is Pareto-dominant at this scale, the outcome PKB's
+  bet predicted. Still open for real encoders on realized (paraphrased) scenarios, where
+  token-overlap stops being a perfect proxy.
+- ~~Minimum seeds for the CIs to separate configs?~~ **3 seeds separate the big effects**
+  (semantic vs episodic-only; every study config vs floor/placebo) **but not the tau
+  contamination gap** (0.267 vs 0.333, overlapping). The tau claim ships as a trend; next
+  step is widening seeds until it resolves one way or the other.
 - Is templated (model-free) surface realization *too* easy to memorize, inflating scores?
-  Check memory-OFF calibration on templated vs LLM-realized scenarios.
+  Still open: realize.py exists (fail-closed, invariant-tested) but the harness doesn't wire
+  it into the default matrix yet — comparing memory-OFF calibration on templated vs
+  LLM-realized scenarios is the experiment to run when a real model is in the loop.

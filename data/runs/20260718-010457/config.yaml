@@ -1,0 +1,68 @@
+# memprobe run configuration.
+#
+# The harness expands `scenarios` x `configs` into the full ablation matrix, runs each cell
+# over `seeds`, and aggregates with confidence intervals. The three ANCHOR configs
+# (memory_off, oracle, shuffled_placebo) are mandatory and validated on every run — see
+# eval/anchors.py. A run whose anchors don't hold is void.
+
+scenarios:
+  n_users: 20            # distinct synthetic users (namespaces) — start small; scale later
+  n_sessions: 8          # multi-session per user
+  turns_per_session: 6   # short support conversations
+  contradiction_rate: 0.25   # fraction of facts that get updated/contradicted in a later session
+  distractor_density: 0.3    # irrelevant facts per session (retrieval noise)
+  seeds: [0, 1, 2]           # >1 seed is required; single-run point numbers are not a result
+
+models:
+  # Default = hermetic (ADR-0012): the deterministic stub + hashing embedder run the whole
+  # matrix with no model, no download, no network — anchors must validate on THIS path
+  # before any real-model numbers are worth discussing. Real backends are opt-in swaps:
+  #   agent: "ollama:qwen3"              # local, $0 (pip install -e '.[local]')
+  #   agent: "anthropic:claude-haiku-4-5"  # cloud, opt-in (pip install -e '.[api]')
+  #   judge: "ollama:qwen3"              # secondary metric only; audited for agreement
+  #   embeddings: "local:all-MiniLM-L6-v2" # sentence-transformers, CPU, 22MB
+  agent: "stub"
+  judge: "stub"
+  embeddings: "hash"                     # deterministic feature hashing (ADR-0011)
+
+# The ablation matrix. Each entry is one column in the results table.
+configs:
+  # --- ANCHORS (mandatory, validated) ---
+  - name: memory_off
+    anchor: calibration        # must score ~= chance
+    memory: none
+  - name: oracle
+    anchor: upper_bound        # ground-truth facts injected directly
+    memory: oracle
+  - name: shuffled_placebo
+    anchor: placebo            # other-user memory; must not beat memory_off
+    memory: semantic
+    retrieval: direct
+    scramble_namespaces: true
+
+  # --- REAL CONFIGS (the study) ---
+  - name: episodic_only
+    memory: episodic
+    retrieval: direct
+  - name: semantic_gate_07
+    memory: [episodic, semantic]
+    retrieval: direct
+    write_gate_tau: 0.7        # ablation axis #1: write-confidence threshold
+  - name: semantic_gate_09
+    memory: [episodic, semantic]
+    retrieval: direct
+    write_gate_tau: 0.9
+  - name: semantic_embedding
+    memory: [episodic, semantic]
+    retrieval: embedding       # ablation axis #2: retrieval backend (the PKB sequel)
+    write_gate_tau: 0.7
+  - name: semantic_forget_decay
+    memory: [episodic, semantic]
+    retrieval: direct
+    write_gate_tau: 0.7
+    forgetting: recency_decay  # ablation axis #3: forgetting policy
+    half_life_days: 30
+
+report:
+  confidence: 0.95
+  out_dir: report/out

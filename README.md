@@ -23,30 +23,56 @@ It is **not** a competitor to LongMemEval — it doesn't rank vendors and it run
 cheap scale on purpose. It's a sandbox for the engineering trade-offs *inside* a memory
 system.
 
-> **Status: scaffold.** Structure, typed stubs, design decisions, and the deterministic
-> test core are in place; model-dependent pieces are stubbed. See [Build order](#build-order).
-> Numbers below are **illustrative placeholders** until the harness runs — this README is
-> results-first by design, so the table is wired up before the data exists.
+> **Status: v1 complete.** The full ablation matrix runs end-to-end, hermetically
+> (`make bench`: no model, no network, no keys — deterministic stub agent + hashing
+> embedder), anchors validate, and the table below is **measured**, not illustrative.
+> Real-model backends (Ollama / Anthropic / MiniLM) are config swaps. 120 tests, zero
+> xfails. Full report: [`report/out/results.md`](report/out/results.md).
 
 ---
 
-## The result this produces (illustrative — NOT yet measured)
+## The result (v1 — hermetic stub-model run, 2026-07-18)
 
-_Once built, `make bench` fills this table. Every cell is measured on generated scenarios
-with known ground truth; ± is a 95% CI across users and seeds._
+_Measured by `make bench` on program-generated scenarios with known ground truth: 20 users
+× 8 sessions × 6 turns, contradiction 0.25, distractors 0.3; every cell is mean [lo, hi] at
+95% confidence across users × seeds (n = 60). **Stub-model run:** the agent is the
+deterministic harness driver, so these numbers validate the harness + policy mechanics —
+they are the lab working, not a model's quality._
 
 | Config | Task success | Contamination | Stale-answer | Tokens/session | $/full run |
 |---|---|---|---|---|---|
-| memory OFF (calibration floor) | _~chance_ | — | — | low | — |
-| oracle memory (upper bound) | _~ceiling_ | 0 | 0 | — | — |
-| episodic only | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _tbd_ |
-| + semantic (write-gate τ=0.7) | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _tbd_ |
-| + semantic (write-gate τ=0.9) | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _tbd_ |
-| semantic, embedding retrieval | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _tbd_ |
-| semantic + recency-decay forgetting | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _tbd_ |
+| memory OFF (calibration floor) | 0.000 [0.000, 0.000] | — | — | 12.5 | $0 |
+| oracle memory (upper bound) | 1.000 [1.000, 1.000] | 0.000 | 0.000 | 15.5 | $0 |
+| shuffled-memory placebo | 0.275 [0.191, 0.359] | 0.392 [0.306, 0.478] | — | 76.1 | $0 |
+| episodic only | 0.658 [0.568, 0.749] | 0.242 [0.161, 0.322] | 0.150 [0.077, 0.223] | 72.0 | $0 |
+| + semantic (write-gate τ=0.7) | 0.867 [0.796, 0.937] | 0.333 [0.242, 0.424] | 0.133 [0.063, 0.204] | 136.0 | $0 |
+| + semantic (write-gate τ=0.9) | 0.858 [0.787, 0.930] | 0.267 [0.183, 0.351] | 0.142 [0.070, 0.213] | 135.5 | $0 |
+| semantic, embedding retrieval | 0.867 [0.796, 0.937] | 0.333 [0.242, 0.424] | 0.133 [0.063, 0.204] | 138.9 (+686 embed) | $0 |
+| semantic + recency-decay forgetting | 0.783 [0.703, 0.864] | 0.292 [0.199, 0.385] | 0.142 [0.070, 0.213] | 135.8 | $0 |
+
+What the stub run already shows (claims phrased by CI separation, nothing else):
+
+- **Anchors hold:** memory-OFF sits at the refusal floor (below the exact 0.300 chance
+  floor), oracle at the ceiling, and the placebo lands at coincidence level (≈ chance) —
+  no cross-user leakage (see ADR-0013 for why placebo compares against *chance*, not the
+  refusing floor).
+- **Gated semantic facts beat whole-session recaps** (0.867 vs 0.658, intervals separated):
+  episodic-only loses facts that fall out of its recency window.
+- **The τ trade-off is directional, not yet separated at 3 seeds:** τ=0.9 shows lower
+  contamination (0.267 vs 0.333) at slightly lower success — the designed
+  strictness-vs-coverage curve, but the intervals overlap, so v1 reports a trend and the
+  seed count it would take to resolve it, not a conclusion.
+- **The direct read held up at this scale** (the PKB-sequel question): embedding retrieval
+  matched direct exactly (0.867) while paying 686 extra embedding tokens — at 20-user
+  scale, structured key lookup is Pareto-dominant. That's the honest finding, not a failure.
+- **Forgetting cost success without buying staleness** at contradiction 0.25 (0.783 vs
+  0.867, directional): the decay dropped old-but-still-current facts.
 
 The **shuffled-memory placebo** and **oracle** rows are not decoration — they are the
 credibility anchors (see [Why you can trust the numbers](#why-you-can-trust-the-numbers)).
+The placebo's dashes: its "stale" column reads as "served a neighbor's value and missed"
+under the shared must_not_contain channel, so v1 reports it only in the full report with
+that caveat spelled out.
 
 ---
 
@@ -96,29 +122,33 @@ the loop deliberately:
 
 ## Build order
 
-Each milestone leaves a runnable artifact; the deterministic core (scenarios + metrics +
-anchors) is milestone 1 because it is the credibility foundation.
+Each milestone left a runnable artifact; the deterministic core (scenarios + metrics +
+anchors) came first because it is the credibility foundation. All five v1 milestones are
+**shipped** (the strict-xfail worklist in `tests/test_pipeline_stub.py` flipped test by
+test — its git history is the build history):
 
-1. **Scenario generator + deterministic metrics + anchors.** memory-OFF ≈ chance, oracle =
-   ceiling, shuffled = placebo. _This milestone alone is a credible artifact._
-2. **Episodic + semantic memory on the Store**, write-gate τ, direct read → first bench column.
-3. **Embedding retrieval backend** (local `all-MiniLM-L6-v2`) → the direct-vs-embedding
-   comparison (the PKB sequel).
-4. **Contamination / staleness / forgetting ablations** + LLM-judge with the agreement audit.
-5. **Full config matrix + results-first report** (table above + accuracy/cost Pareto plot).
-- **Stretch:** procedural memory; anchor difficulty against a LongMemEval-S slice for
-  external validity; LangMem as a drop-in backend.
+1. ✅ **Scenario generator + deterministic metrics + anchors.** memory-OFF ≈ chance, oracle =
+   ceiling, shuffled = placebo.
+2. ✅ **Episodic + semantic memory on the Store**, write-gate τ, direct read.
+3. ✅ **Embedding retrieval backend** (hermetic hashing encoder by default; local
+   `all-MiniLM-L6-v2` via config) → the direct-vs-embedding comparison (the PKB sequel).
+4. ✅ **Forgetting ablation** + LLM-judge with the agreement audit (judge numbers cannot
+   render without the audit).
+5. ✅ **Full config matrix + results-first report** (table above + accuracy/cost Pareto).
+- **Stretch (open):** procedural memory; anchor difficulty against a LongMemEval-S slice for
+  external validity; LangMem as a drop-in backend; v2 = context-policy family (ADR-0007).
 
 ## Quickstart
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"        # core + tests, no model needed
-make test                      # deterministic suite runs with the stub model, no API/Ollama
-# optional model backends:
-pip install -e ".[local]"      # sentence-transformers + ollama client
+make test                      # deterministic suite (120 tests) — no API, no Ollama
+make bench                     # full hermetic matrix → data/runs/<ts>/ + report/out/
+# optional extras:
+pip install -e ".[plot]"       # pareto.png in the report (ASCII Pareto works without it)
+pip install -e ".[local]"      # sentence-transformers + ollama client for real-model runs
 pip install -e ".[api]"        # anthropic client for a stronger judge
-make bench                     # runs the matrix → report/
 ```
 
 **Model strategy (default = free & offline):** agent + judge default to a local Ollama model;

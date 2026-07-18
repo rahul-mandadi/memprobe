@@ -7,11 +7,13 @@ venv/
 .pytest_cache/
 .ruff_cache/
 
-# Model / data artifacts (regenerable; keep the repo light)
+# Model / data artifacts (regenerable; keep the repo light).
+# Exceptions: report/out/ (the deliverable the README links) and the single run
+# backing the README's results table (run.json provenance) are committed.
 data/*.jsonl
 data/*.parquet
-data/runs/
-report/out/
+data/runs/*
+!data/runs/20260718-010457
 *.faiss
 .cache/
 
