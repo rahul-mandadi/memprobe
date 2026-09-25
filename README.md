@@ -26,12 +26,34 @@ system.
 > **Status: v1 complete.** The full ablation matrix runs end-to-end, hermetically
 > (`make bench`: no model, no network, no keys — deterministic stub agent + hashing
 > embedder), anchors validate, and the table below is **measured**, not illustrative.
-> Real-model backends (Ollama / Anthropic / MiniLM) are config swaps. 120 tests, zero
+> Real-model backends (Ollama / Anthropic / MiniLM) are config swaps. 123 tests, zero
 > xfails. Full report: [`report/out/results.md`](report/out/results.md).
 
 ---
 
-## The result (v1 — hermetic stub-model run, 2026-07-18)
+## The result on a real model (2026-09-25)
+
+Claude Haiku 4.5 as the agent (via AWS Bedrock), `all-MiniLM-L6-v2` embeddings, the same
+program-generated scenarios: 20 users x 8 sessions x 6 turns, 3 seeds, n = 60 per config,
+95% CIs. Anchors pass: memory off 0.067 (chance 0.300), oracle 1.000, shuffled placebo 0.308.
+
+| Config | Task success | Tokens/session |
+|---|---|---|
+| episodic recaps only | 0.658 [0.568, 0.749] | 127.7 |
+| + semantic facts, write gate 0.7 | 0.825 [0.750, 0.900] | 242.0 |
+| + semantic facts, write gate 0.9 | 0.842 [0.768, 0.915] | 240.7 |
+| semantic, embedding retrieval | 0.842 [0.768, 0.915] | 246.3 (+686 embedding) |
+| semantic + recency-decay forgetting | 0.767 [0.686, 0.847] | 241.5 |
+
+- **Extracted semantic facts beat episodic recaps** (0.84 vs 0.66, intervals separated).
+- **Embedding retrieval tied direct lookup** and paid 686 extra embedding tokens.
+- **The write-gate threshold and forgetting did not separate** from the baseline semantic config.
+- **The stand-in run's ordering replicated** with a real LLM answering.
+
+Full matrix for about $1.13. What it does not show, including why the contamination column
+should not be read as cross-user leakage yet: [`report/FINDINGS.md`](report/FINDINGS.md).
+
+## The harness validation run (v1, hermetic stub-model run, 2026-07-18)
 
 _Measured by `make bench` on program-generated scenarios with known ground truth: 20 users
 × 8 sessions × 6 turns, contradiction 0.25, distractors 0.3; every cell is mean [lo, hi] at
@@ -100,8 +122,8 @@ the loop deliberately:
   sampled subset). A judge you haven't audited is a vibe, not a metric.
 - **Three anchors gate every run:** memory-OFF must score ≈ chance (calibration), **oracle
   memory** (ground-truth facts injected directly) sets the upper bound, and a
-  **shuffled/other-user memory** placebo must score no better than memory-OFF — if it does,
-  the harness is leaking and the run is void.
+  **shuffled/other-user memory** placebo must score no better than chance (ADR-0013); if it
+  clears that ceiling, the harness is leaking and the run is void.
 - **Multiple seeds, reported with CIs.** Point estimates from one run are not a result.
 
 ## Design decisions (the honest ones)
@@ -143,7 +165,7 @@ test — its git history is the build history):
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"        # core + tests, no model needed
-make test                      # deterministic suite (120 tests) — no API, no Ollama
+make test                      # deterministic suite (123 tests) — no API, no Ollama
 make bench                     # full hermetic matrix → data/runs/<ts>/ + report/out/
 # optional extras:
 pip install -e ".[plot]"       # pareto.png in the report (ASCII Pareto works without it)
