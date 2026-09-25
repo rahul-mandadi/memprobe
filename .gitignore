@@ -13,6 +13,8 @@ venv/
 data/*.jsonl
 data/*.parquet
 data/runs/*
+# Third-party benchmark data (LongMemEval, MIT): download, never commit.
+data/longmemeval/
 !data/runs/20260718-010457
 *.faiss
 .cache/
