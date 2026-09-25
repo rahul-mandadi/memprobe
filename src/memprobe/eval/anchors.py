@@ -71,6 +71,18 @@ def validate(
             "Run is VOID."
         )
 
-    if ok:
+    # Not a FAIL, but not a pass either: the placebo's point estimate clears the coincidence
+    # ceiling while its interval is too wide to say whether that is real. Found on the first
+    # real-model pilot (n=2, one user): placebo 0.750 against a 0.362 ceiling, CI
+    # [-2.4, 3.9], and the gate printed "anchors OK". A gate that cannot fail at small n must
+    # say so rather than read as a pass.
+    placebo_inconclusive = ok and placebo.mean > placebo_ceiling and placebo.lo <= placebo_ceiling
+    if placebo_inconclusive:
+        msgs.append(
+            f"PLACEBO INCONCLUSIVE: shuffled memory {placebo} is above the coincidence ceiling "
+            f"{placebo_ceiling:.3f} on its point estimate, but the interval is too wide to call. "
+            "Not a pass; rerun with more users or seeds before reading the matrix."
+        )
+    elif ok:
         msgs.append("anchors OK: calibration, upper bound, and placebo all hold.")
     return AnchorReport(ok=ok, messages=msgs)

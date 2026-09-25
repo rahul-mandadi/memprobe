@@ -41,7 +41,9 @@ def _anchor_block(data: dict) -> list[str]:
         if row:
             lines.append(f"- {label[key]}: task success {_fmt(row['task_success'])}")
     lines.append("")
-    lines.append(f"**Gate result: {'PASS' if ok else 'FAIL'}**")
+    inconclusive = any("INCONCLUSIVE" in m for m in data["anchors"]["messages"])
+    verdict = "FAIL" if not ok else ("PASS, PLACEBO INCONCLUSIVE" if inconclusive else "PASS")
+    lines.append(f"**Gate result: {verdict}**")
     lines += [f"- {m}" for m in data["anchors"]["messages"]]
     return lines
 

@@ -49,7 +49,8 @@ from memprobe.scenarios.schema import Scenario
 SESSION_SPACING_DAYS = 10.0
 
 # $/Mtok (input, output). Local paths are $0; anthropic priced at Haiku-4.5 list.
-PRICING_PER_MTOK = {"stub": (0.0, 0.0), "ollama": (0.0, 0.0), "anthropic": (1.0, 5.0)}
+PRICING_PER_MTOK = {"stub": (0.0, 0.0), "ollama": (0.0, 0.0), "anthropic": (1.0, 5.0),
+                    "bedrock": (1.0, 5.0)}  # Haiku 4.5 on-demand, same list price
 
 
 class AnchorValidationError(RuntimeError):

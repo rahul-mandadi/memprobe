@@ -60,3 +60,14 @@ def test_placebo_above_chance_ceiling_with_refusing_floor_is_a_leak():
     rep = validate(memory_off, oracle, placebo, chance_floor=0.25)
     assert not rep.ok
     assert any("PLACEBO" in m for m in rep.messages)
+
+
+def test_underpowered_placebo_above_ceiling_is_inconclusive_not_ok():
+    """First real-model pilot, n=2: placebo 0.75 vs a ~0.36 ceiling printed "anchors OK"."""
+    memory_off = _est([0.0, 0.0])
+    oracle = _est([1.0, 1.0])
+    placebo = _est([1.0, 0.5])              # mean 0.75, interval far too wide at n=2
+    rep = validate(memory_off, oracle, placebo, chance_floor=0.312)
+    assert rep.ok                            # not a leak we can prove, so not VOID
+    assert any("INCONCLUSIVE" in m for m in rep.messages)
+    assert not any("anchors OK" in m for m in rep.messages)

@@ -104,10 +104,14 @@ class AnthropicModel:
     """Opt-in cloud backend for a stronger judge (Haiku 4.5, ~$1/$5 per Mtok).
 
     Lazy import + real token usage from the API response. Requires the [api] extra and
-    ANTHROPIC_API_KEY; the hermetic core never touches this path.
+    ANTHROPIC_API_KEY; the hermetic core never touches this path. With `bedrock=True` the same
+    model runs through AWS Bedrock on the ambient AWS credentials (`[bedrock]` extra), and
+    `name` is a Bedrock model or inference-profile id.
     """
 
     name: str = "claude-haiku-4-5"
+    bedrock: bool = False
+    region: str = "us-east-1"
     _usage: Usage = field(default_factory=Usage)
     _client: object = field(default=None, repr=False)
 
@@ -119,7 +123,8 @@ class AnthropicModel:
                 raise RuntimeError(
                     "AnthropicModel needs the [api] extra: pip install -e '.[api]'"
                 ) from e
-            self._client = anthropic.Anthropic()
+            self._client = (anthropic.AnthropicBedrock(aws_region=self.region)
+                            if self.bedrock else anthropic.Anthropic())
         resp = self._client.messages.create(
             model=self.name, max_tokens=512,
             messages=[{"role": "user", "content": prompt}],
@@ -134,7 +139,7 @@ class AnthropicModel:
 
 
 def build_model(spec: str) -> ChatModel:
-    """Factory: 'stub' | 'ollama:<name>' | 'anthropic:<name>'. Implemented for stub."""
+    """Factory: 'stub' | 'ollama:<name>' | 'anthropic:<name>' | 'bedrock:<model or profile id>'."""
     if spec == "stub":
         return StubModel()
     provider, _, name = spec.partition(":")
@@ -142,4 +147,7 @@ def build_model(spec: str) -> ChatModel:
         return OllamaModel(name=name or "qwen3")
     if provider == "anthropic":
         return AnthropicModel(name=name or "claude-haiku-4-5")
+    if provider == "bedrock":
+        return AnthropicModel(name=name or "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+                              bedrock=True)
     raise ValueError(f"unknown model spec: {spec!r}")

@@ -56,3 +56,27 @@ def test_ollama_supports_object_style_responses(monkeypatch):
     m = OllamaModel(name="qwen3")
     assert m.complete("hi") == "object style reply"
     assert m.usage.input_tokens == 7 and m.usage.output_tokens == 3
+
+
+def test_bedrock_spec_routes_claude_through_bedrock():
+    from memprobe.agent.models import AnthropicModel
+    m = build_model("bedrock:")
+    assert isinstance(m, AnthropicModel) and m.bedrock
+    assert m.name == "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+    assert build_model("bedrock:some.profile-id").name == "some.profile-id"
+    assert not build_model("anthropic:claude-haiku-4-5").bedrock
+
+
+def test_bedrock_model_meters_usage_from_the_response():
+    from types import SimpleNamespace as NS
+    from memprobe.agent.models import AnthropicModel
+
+    class FakeMessages:
+        def create(self, **kw):
+            return NS(usage=NS(input_tokens=11, output_tokens=3),
+                      content=[NS(text="ok")])
+
+    m = AnthropicModel(name="x", bedrock=True)
+    m._client = NS(messages=FakeMessages())
+    assert m.complete("hi") == "ok"
+    assert (m.usage.input_tokens, m.usage.output_tokens) == (11, 3)
